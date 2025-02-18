@@ -13,9 +13,9 @@ class MqttManager(
     private var client: MqttClient? = null
 
     // Definiere Topics für Lichtsteuerung & Helligkeit
-    private val powerTopic = "D1Mini_1/cmnd/POWER"
-    private val dimmerTopic = "D1Mini_1/cmnd/Dimmer"
-    private val stateTopic = "D1Mini_1/stat/RESULT" // Hier kommen Rückmeldungen an
+    private val powerTopic = "cmnd/D1Mini_1/Power"
+    private val dimmerTopic = "cmnd/D1Mini_1/Dimmer"
+    private val stateTopic = "stat/D1Mini_1/Result"
 
     init{
         connect()

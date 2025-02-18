@@ -37,7 +37,7 @@ class MqttViewModel: ViewModel() {
             println("📡 MQTT: Versuche Licht zu toggeln...")
             mqttManager.connect() //  Verbindung sicherstellen
             val newState = !_lightState.value
-            mqttManager.publishMessage("D1Mini_1/cmnd/POWER", if (newState) "ON" else "OFF")
+            mqttManager.publishMessage("cmnd/D1Mini_1/Power", if (newState) "ON" else "OFF")
             _lightState.value = newState
         }
     }
