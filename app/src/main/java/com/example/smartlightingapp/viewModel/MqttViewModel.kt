@@ -46,7 +46,7 @@ class MqttViewModel: ViewModel() {
         viewModelScope.launch {
             println("📡 MQTT: Versuche Helligkeit zu setzen...")
             mqttManager.connect() //  Verbindung sicherstellen
-            mqttManager.publishMessage("D1Mini_1/cmnd/Dimmer", value.toString())
+            mqttManager.publishMessage("cmnd/D1Mini_1/Dimmer", value.toString())
             _brightness.value = value
         }
     }
