@@ -8,13 +8,12 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
 class MqttManager(
         private val brokerUrl: String,
-        private val clientId: String
+        private val clientId: String,
+        private val messageCallback: (String, String) -> Unit // Callback für MQTT-Nachrichten
         ){
     private var client: MqttClient? = null
 
     // Definiere Topics für Lichtsteuerung & Helligkeit
-    private val powerTopic = "cmnd/D1Mini_1/Power"
-    private val dimmerTopic = "cmnd/D1Mini_1/Dimmer"
     private val stateTopic = "stat/D1Mini_1/Result"
 
     init{
@@ -38,7 +37,16 @@ class MqttManager(
 
              client?.connect(options)
              println(" MQTT: Verbindung hergestellt mit $brokerUrl")
-             subscribe { stateTopic }
+
+             // Manuelles Abonnieren nach Verbindung
+             listOf("D1Mini_1", "D1Mini_2").forEach { deviceId ->
+                 val topic = "stat/$deviceId/RESULT"
+                 println("DEBUG: Manuelles Abonnieren von $topic")
+                 subscribe(topic) { message ->
+                     println("DEBUG: Nachricht empfangen für $deviceId -> $message")
+                     messageCallback(deviceId, message) // Nachricht an MqttViewModel weitergeben
+                 }
+             }
 
          } catch (e: MqttException) {
              println(" MQTT: Verbindung fehlgeschlagen - ${e.message}")
@@ -65,17 +73,18 @@ class MqttManager(
         }
     }
 
-    fun subscribe(callback: (String) -> Unit) {
+    fun subscribe(topic: String, callback: (String) -> Unit) {
         try {
-            client?.subscribe(stateTopic) { _, message ->
+            client?.subscribe(topic) { _, message ->
                 val payload = String(message.payload)
-                println("MQTT: Nachricht empfangen - $payload")
+                println("MQTT: Nachricht empfangen von $topic - $payload")
                 callback(payload)
             }
         } catch (e: MqttException) {
             e.printStackTrace()
         }
     }
+
 
     fun disconnect() {
         try {
