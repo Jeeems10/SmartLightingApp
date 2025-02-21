@@ -28,6 +28,8 @@ class MqttViewModel: ViewModel() {
                 println("DEBUG: Nachricht empfangen für $deviceId -> $message") // Debugging
                 updateDeviceState(deviceId, message)
             }
+            mqttManager.requestDeviceStatus(deviceId) // 🎯 Direkt nach Start den Status abrufen
+
         }
     }
 

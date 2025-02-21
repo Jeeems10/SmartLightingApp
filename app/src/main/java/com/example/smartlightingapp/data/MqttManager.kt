@@ -75,6 +75,7 @@ class MqttManager(
 
     fun subscribe(topic: String, callback: (String) -> Unit) {
         try {
+            println("DEBUG: Abonniere Topic $topic")
             client?.subscribe(topic) { _, message ->
                 val payload = String(message.payload)
                 println("MQTT: Nachricht empfangen von $topic - $payload")
@@ -94,4 +95,11 @@ class MqttManager(
             e.printStackTrace()
         }
     }
+
+    fun requestDeviceStatus(deviceId: String) {
+        val topic = "cmnd/$deviceId/STATUS"
+        println("DEBUG: Sende Statusabfrage an $topic")
+        publishMessage(topic, "0") // Statusabfrage an Tasmota
+    }
+
 }
