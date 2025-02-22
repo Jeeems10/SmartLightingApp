@@ -14,13 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.example.smartlightingapp.data.AuthManager
+import com.example.smartlightingapp.repository.AuthRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
-fun LoginScreen(authManager: AuthManager, onLoginSuccess: () -> Unit) {
+fun LoginScreen(authRepository: AuthRepository, onLoginSuccess: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -31,7 +31,7 @@ fun LoginScreen(authManager: AuthManager, onLoginSuccess: () -> Unit) {
 
         Button(onClick = {
             CoroutineScope(Dispatchers.IO).launch {
-                val success = authManager.loginUser(email, password)
+                val success = authRepository.loginUser(email, password)
                 if (success) onLoginSuccess()
                 else error = "Fehler bei der Anmeldung"
             }
