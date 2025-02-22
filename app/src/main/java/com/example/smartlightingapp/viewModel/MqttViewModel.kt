@@ -96,13 +96,16 @@ class MqttViewModel: ViewModel() {
     fun renameDevice(id: String, newName: String) {
         viewModelScope.launch {
             val updatedLights = _lights.value.toMutableList()
-            val device = updatedLights.find { it.id == id }
-            if (device != null) {
-                device.name = newName
-                _lights.value = updatedLights
+            val deviceIndex = updatedLights.indexOfFirst { it.id == id }
+
+            if (deviceIndex != -1) {
+                updatedLights[deviceIndex] = updatedLights[deviceIndex].copy(name = newName) // ✅ Name direkt ändern
+                _lights.value = updatedLights // ✅ StateFlow updaten
+                firestoreManager.updateLight(id, name = newName, isOn = null, brightness = null) // ✅ Firestore speichern
             }
         }
     }
+
 
     // 🌟 Geräteliste aktualisieren
     private fun updateDeviceState(deviceId: String, message: String) {
