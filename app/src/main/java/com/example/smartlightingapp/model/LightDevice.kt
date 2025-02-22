@@ -1,4 +1,4 @@
-package com.example.smartlightingapp.data
+package com.example.smartlightingapp.model
 
 data class LightDevice(
     val id: String,

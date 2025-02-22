@@ -1,15 +1,22 @@
-package com.example.smartlightingapp.data
+package com.example.smartlightingapp.repository
 
+import com.example.smartlightingapp.model.LightDevice
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
-class FirestoreManager {
+class LightsRepository {
     private val db = FirebaseFirestore.getInstance()
     val lightsCollection = db.collection("lights")
 
-    suspend fun addLight(id: String, name: String): Boolean {
+    suspend fun addLight(id: String, ip: String): Boolean {
         return try {
-            val light = hashMapOf("id" to id, "name" to name, "isOn" to false, "brightness" to 50)
+            val light = hashMapOf(
+                "id" to id,
+                "name" to "ESP Device",
+                "ip" to ip,
+                "isOn" to false,
+                "brightness" to 50
+            )
             lightsCollection.document(id).set(light).await()
             true
         } catch (e: Exception) {
@@ -32,11 +39,12 @@ class FirestoreManager {
             isOn?.let { updates["isOn"] = it }
             brightness?.let { updates["brightness"] = it }
 
-            docRef.update(updates).await()  // Jetzt sicher updaten
+            docRef.update(updates).await()
         } catch (e: Exception) {
             println("🔥 Fehler beim Update von $id: ${e.message}")
         }
     }
+
 
 
     suspend fun removeLight(id: String): Boolean {
