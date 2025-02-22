@@ -1,4 +1,4 @@
-package com.example.smartlightingapp.data
+package com.example.smartlightingapp.repository
 
 import org.eclipse.paho.client.mqttv3.MqttClient
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
@@ -6,7 +6,7 @@ import org.eclipse.paho.client.mqttv3.MqttException
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
-class MqttManager(
+class MqttRepository(
         private val brokerUrl: String,
         private val clientId: String,
         private val messageCallback: (String, String) -> Unit // Callback für MQTT-Nachrichten
@@ -21,12 +21,12 @@ class MqttManager(
     }
 
      fun connect(){
-         try {
-             if (client?.isConnected == true) {
-                 println("MQTT: Bereits verbunden.")
-                 return
-             }
+         if (client?.isConnected == true) {
+             println("MQTT: Bereits verbunden.")
+             return
+         }
 
+         try {
              client = MqttClient(brokerUrl, clientId, MemoryPersistence())
              val options = MqttConnectOptions().apply {
                  isCleanSession = true  // Verbindung behalten

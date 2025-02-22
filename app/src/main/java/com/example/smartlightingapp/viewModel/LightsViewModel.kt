@@ -2,21 +2,21 @@ package com.example.smartlightingapp.viewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.smartlightingapp.data.FirestoreManager
-import com.example.smartlightingapp.data.LightDevice
-import com.example.smartlightingapp.data.MqttManager
+import com.example.smartlightingapp.repository.LightsRepository
+import com.example.smartlightingapp.model.LightDevice
+import com.example.smartlightingapp.repository.MqttRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 
-class MqttViewModel: ViewModel() {
-    private val mqttManager = MqttManager("tcp://192.168.0.67:1883", "SmartLightingApp"){
+class LightsViewModel: ViewModel() {
+    private val mqttRepository = MqttRepository("tcp://192.168.0.67:1883", "SmartLightingApp"){
             deviceId, message ->
         updateDeviceState(deviceId, message) // Hier wird updateDeviceState() aufgerufen
     }
 
-    private val firestoreManager = FirestoreManager()
+    private val lightsRepository = LightsRepository()
 
     // 🌟 Liste aller Lichter speichern
     private val _lights = MutableStateFlow<List<LightDevice>>(emptyList())
@@ -26,19 +26,19 @@ class MqttViewModel: ViewModel() {
     // 🌟 MQTT-Subscription für mehrere Geräte
     init {
         viewModelScope.launch {
-            val savedLights = firestoreManager.getAllLights()
+            val savedLights = lightsRepository.getAllLights()
             _lights.value = savedLights  // Firestore-Lichter laden
 
             // Nach dem Laden der Geräte -> MQTT abonnieren
             savedLights.forEach { device ->
-                mqttManager.subscribe("stat/${device.id}/RESULT") { message ->
+                mqttRepository.subscribe("stat/${device.id}/RESULT") { message ->
                     updateDeviceState(device.id, message)
                 }
-                mqttManager.requestDeviceStatus(device.id)
+                mqttRepository.requestDeviceStatus(device.id)
             }
         }
         // 🔥 Echtzeit-Listener für Firestore (damit UI sofort aktualisiert wird)
-        firestoreManager.lightsCollection.addSnapshotListener { snapshot, e ->
+        lightsRepository.lightsCollection.addSnapshotListener { snapshot, e ->
             if (e != null) {
                 println("Firestore Fehler: ${e.message}")
                 return@addSnapshotListener
@@ -61,7 +61,7 @@ class MqttViewModel: ViewModel() {
     // 🌟 Gerät hinzufügen
     fun addDevice(id: String, name: String) {
         viewModelScope.launch {
-            val success = firestoreManager.addLight(id, name)
+            val success = lightsRepository.addLight(id, name)
             if (success) {
                 val updatedLights = _lights.value.toMutableList()
                 updatedLights.add(LightDevice(id, name, false, 50))
@@ -75,7 +75,7 @@ class MqttViewModel: ViewModel() {
     // 🌟 Gerät entfernen
     fun removeDevice(id: String) {
         viewModelScope.launch {
-            val success = firestoreManager.removeLight(id)
+            val success = lightsRepository.removeLight(id)
             if (success) {
                 val updatedLights = _lights.value.toMutableList()
                 updatedLights.removeAll { it.id == id }
@@ -88,7 +88,7 @@ class MqttViewModel: ViewModel() {
 
     fun updateDevice(id: String, name: String, isOn: Boolean, brightness: Int) {
         viewModelScope.launch {
-            firestoreManager.updateLight(id, name, isOn, brightness)
+            lightsRepository.updateLight(id, name, isOn, brightness)
         }
     }
 
@@ -101,7 +101,7 @@ class MqttViewModel: ViewModel() {
             if (deviceIndex != -1) {
                 updatedLights[deviceIndex] = updatedLights[deviceIndex].copy(name = newName) // ✅ Name direkt ändern
                 _lights.value = updatedLights // ✅ StateFlow updaten
-                firestoreManager.updateLight(id, name = newName, isOn = null, brightness = null) // ✅ Firestore speichern
+                lightsRepository.updateLight(id, name = newName, isOn = null, brightness = null) // ✅ Firestore speichern
             }
         }
     }
@@ -131,7 +131,7 @@ class MqttViewModel: ViewModel() {
             _lights.value = updatedLights
 
             // Update Firestore
-            firestoreManager.updateLight(
+            lightsRepository.updateLight(
                 id = deviceId,
                 isOn = newLight.isOn,
                 name = null,
@@ -148,20 +148,20 @@ class MqttViewModel: ViewModel() {
             val newState = !light.isOn
 
 
-            firestoreManager.updateLight(id, isOn = newState, name = null, brightness = null) // Firestore updaten
-            mqttManager.publishMessage("cmnd/$id/Power", if (newState) "ON" else "OFF") // MQTT senden
+            lightsRepository.updateLight(id, isOn = newState, name = null, brightness = null) // Firestore updaten
+            mqttRepository.publishMessage("cmnd/$id/Power", if (newState) "ON" else "OFF") // MQTT senden
         }
     }
 
     fun setBrightness(id: String, brightness: Int) {
         viewModelScope.launch {
-            mqttManager.publishMessage("cmnd/$id/Dimmer", brightness.toString())
+            mqttRepository.publishMessage("cmnd/$id/Dimmer", brightness.toString())
         }
     }
 
     override fun onCleared() {
         super.onCleared()
-        mqttManager.disconnect()
+        mqttRepository.disconnect()
     }
 
     /** Extrahiert den Dimmer-Wert aus der MQTT-Nachricht **/

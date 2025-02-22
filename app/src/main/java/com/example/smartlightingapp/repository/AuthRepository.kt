@@ -1,9 +1,9 @@
-package com.example.smartlightingapp.data
+package com.example.smartlightingapp.repository
 
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 
-class AuthManager {
+class AuthRepository {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
     suspend fun registerUser(email: String, password: String): Boolean {
