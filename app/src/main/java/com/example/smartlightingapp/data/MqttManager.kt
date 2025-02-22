@@ -29,10 +29,11 @@ class MqttManager(
 
              client = MqttClient(brokerUrl, clientId, MemoryPersistence())
              val options = MqttConnectOptions().apply {
-                 isCleanSession = false  // Verbindung behalten
+                 isCleanSession = true  // Verbindung behalten
                  isAutomaticReconnect = true  // Automatisch neu verbinden
                  userName = "jamesponce"  // Falls nötig
                  password = "jamesponce".toCharArray()  // Falls nötig
+                 connectionTimeout = 10 // Erhöhe Timeout
              }
 
              client?.connect(options)

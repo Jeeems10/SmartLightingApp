@@ -25,28 +25,64 @@ class MqttViewModel: ViewModel() {
 
     // 🌟 MQTT-Subscription für mehrere Geräte
     init {
-        listOf("D1Mini_1", "D1Mini_2").forEach { deviceId ->
-            println("DEBUG: MQTT-Subscription für $deviceId gestartet") // Debugging
-            mqttManager.subscribe("stat/$deviceId/RESULT") { message ->
-                println("DEBUG: Nachricht empfangen für $deviceId -> $message") // Debugging
-                updateDeviceState(deviceId, message)
-            }
-            mqttManager.requestDeviceStatus(deviceId) // 🎯 Direkt nach Start den Status abrufen
+        viewModelScope.launch {
+            val savedLights = firestoreManager.getAllLights()
+            _lights.value = savedLights  // Firestore-Lichter laden
 
+            // Nach dem Laden der Geräte -> MQTT abonnieren
+            savedLights.forEach { device ->
+                mqttManager.subscribe("stat/${device.id}/RESULT") { message ->
+                    updateDeviceState(device.id, message)
+                }
+                mqttManager.requestDeviceStatus(device.id)
+            }
+        }
+        // 🔥 Echtzeit-Listener für Firestore (damit UI sofort aktualisiert wird)
+        firestoreManager.lightsCollection.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                println("Firestore Fehler: ${e.message}")
+                return@addSnapshotListener
+            }
+
+            snapshot?.documents?.mapNotNull { doc ->
+                val id = doc.getString("id") ?: return@mapNotNull null
+                val name = doc.getString("name") ?: "Unbekannt"
+                val isOn = doc.getBoolean("isOn") ?: false
+                val brightness = doc.getLong("brightness")?.toInt() ?: 50
+
+                LightDevice(id, name, isOn, brightness)
+            }?.let { newLights ->
+                println("🔥 Firestore Update: $newLights")
+                _lights.value = newLights
+            }
         }
     }
 
     // 🌟 Gerät hinzufügen
     fun addDevice(id: String, name: String) {
         viewModelScope.launch {
-            firestoreManager.addLight(id, name)
+            val success = firestoreManager.addLight(id, name)
+            if (success) {
+                val updatedLights = _lights.value.toMutableList()
+                updatedLights.add(LightDevice(id, name, false, 50))
+                _lights.value = updatedLights
+            } else {
+                println("Fehler: Konnte Gerät nicht zu Firestore hinzufügen!")
+            }
         }
     }
 
     // 🌟 Gerät entfernen
     fun removeDevice(id: String) {
         viewModelScope.launch {
-            firestoreManager.removeLight(id)
+            val success = firestoreManager.removeLight(id)
+            if (success) {
+                val updatedLights = _lights.value.toMutableList()
+                updatedLights.removeAll { it.id == id }
+                _lights.value = updatedLights
+            } else {
+                println("Fehler: Konnte Gerät nicht aus Firestore entfernen!")
+            }
         }
     }
 
@@ -70,14 +106,15 @@ class MqttViewModel: ViewModel() {
 
     // 🌟 Geräteliste aktualisieren
     private fun updateDeviceState(deviceId: String, message: String) {
-        println("DEBUG: Update für $deviceId mit Nachricht: $message") // Debugging
+        println("DEBUG: Update für $deviceId mit Nachricht: $message")
+
         viewModelScope.launch {
             val updatedLights = _lights.value.toMutableList()
             val existingLight = updatedLights.find { it.id == deviceId }
 
             val newLight = LightDevice(
                 id = deviceId,
-                name = "Licht $deviceId",
+                name = existingLight?.name ?: "Licht $deviceId",
                 isOn = message.contains("\"POWER\":\"ON\""),
                 brightness = extractBrightness(message) ?: existingLight?.brightness ?: 50
             )
@@ -89,14 +126,27 @@ class MqttViewModel: ViewModel() {
             }
 
             _lights.value = updatedLights
+
+            // Update Firestore
+            firestoreManager.updateLight(
+                id = deviceId,
+                isOn = newLight.isOn,
+                name = null,
+                brightness = newLight.brightness
+            )
         }
     }
+
 
     // 🌟 Licht togglen
     fun toggleLight(id: String) {
         viewModelScope.launch {
             val light = _lights.value.find { it.id == id } ?: return@launch
-            mqttManager.publishMessage("cmnd/$id/Power", if (light.isOn) "OFF" else "ON")
+            val newState = !light.isOn
+
+
+            firestoreManager.updateLight(id, isOn = newState, name = null, brightness = null) // Firestore updaten
+            mqttManager.publishMessage("cmnd/$id/Power", if (newState) "ON" else "OFF") // MQTT senden
         }
     }
 

@@ -3,6 +3,7 @@ package com.example.smartlightingapp.screen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.smartlightingapp.data.LightDevice
 import com.example.smartlightingapp.ui.theme.SmartLightingAppTheme
 import com.example.smartlightingapp.viewModel.MqttViewModel
@@ -48,7 +53,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    HomeScreen()
+                    AppNavigation()
                 }
             }
         }
@@ -56,87 +61,60 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(
-    mqttViewModel: MqttViewModel = viewModel()
-) {
-    val lights by mqttViewModel.lights.collectAsState()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "Smart Lighting")
-
-        // Eingabefeld für neues Gerät
-        var newDeviceName by remember { mutableStateOf("") }
-        var newDeviceId by remember { mutableStateOf("") }
-
-        OutlinedTextField(
-            value = newDeviceId,
-            onValueChange = { newDeviceId = it },
-            label = { Text("Geräte-ID") }
-        )
-
-        OutlinedTextField(
-            value = newDeviceName,
-            onValueChange = { newDeviceName = it },
-            label = { Text("Gerätename") }
-        )
-
-        Button(onClick = {
-            if (newDeviceId.isNotEmpty() && newDeviceName.isNotEmpty()) {
-                mqttViewModel.addDevice(newDeviceId, newDeviceName)
-                newDeviceId = ""
-                newDeviceName = ""
-            }
-        }) {
-            Text("Gerät hinzufügen")
-        }
-
-        LazyColumn {
-            items(lights) { light ->
-                LightItem(
-                    light = light,
-                    onToggle = { mqttViewModel.toggleLight(light.id) },
-                    onBrightnessChange = { mqttViewModel.setBrightness(light.id, it) },
-                    onRemove = { mqttViewModel.removeDevice(light.id) },
-                    onRename = { newName -> mqttViewModel.renameDevice(light.id, newName) }
-                )
+fun AppNavigation() {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "device_list") {
+        composable("device_list") { DeviceListScreen(navController) }
+        composable("device_detail/{deviceId}") { backStackEntry ->
+            val deviceId = backStackEntry.arguments?.getString("deviceId")
+            if (deviceId != null) {
+                DeviceDetailScreen(navController, deviceId)
+            } else {
+                Text("Fehler: Kein Gerät gefunden!") // Falls `deviceId` fehlt
             }
         }
     }
 }
 
 @Composable
-fun LightItem(light: LightDevice, onToggle: () -> Unit, onBrightnessChange: (Int) -> Unit, onRemove: () -> Unit, onRename: (String) -> Unit) {
-    var newName by remember { mutableStateOf(light.name) }
+fun DeviceListScreen(navController: NavController, mqttViewModel: MqttViewModel = viewModel()) {
+    val lights by mqttViewModel.lights.collectAsState()
 
-    Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = newName,
-                onValueChange = { newName = it },
-                label = { Text("Gerätename") }
-            )
-            Button(onClick = { onRename(newName) }) { Text("Umbenennen") }
-            Button(onClick = { onRemove() }) { Text("Löschen") }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "Smart Lighting")
+
+        LazyColumn {
+            items(lights) { light ->
+                LightItem(light, mqttViewModel = mqttViewModel ,onClick = { navController.navigate("device_detail/${light.id}") })
+            }
         }
+    }
+}
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = light.name)
-            Spacer(modifier = Modifier.width(8.dp))
-            Switch(checked = light.isOn, onCheckedChange = { onToggle() })
-        }
+@Composable
+fun LightItem(light: LightDevice, mqttViewModel: MqttViewModel, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = light.name, modifier = Modifier.weight(1f))
 
-        Slider(
-            value = light.brightness.toFloat(),
-            onValueChange = { onBrightnessChange(it.toInt()) },
-            valueRange = 0f..100f
+        Switch(
+            checked = light.isOn,
+            onCheckedChange = {
+                println("DEBUG: Toggle Licht ${light.id} auf ${!light.isOn}")
+                mqttViewModel.toggleLight(light.id) // 🚀 Jetzt wird MQTT & Firestore gesteuert
+            }
         )
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable

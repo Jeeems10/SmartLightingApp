@@ -18,8 +18,10 @@ class AuthManager {
     suspend fun loginUser(email: String, password: String): Boolean {
         return try {
             auth.signInWithEmailAndPassword(email, password).await()
+            println("Login erfolgreich für $email")
             true
         } catch (e: Exception) {
+            println("Fehler bei der Anmeldung: ${e.message}")
             false
         }
     }
