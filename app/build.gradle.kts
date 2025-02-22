@@ -1,7 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("kotlin-kapt") // <-- Dies hinzufügen!
+    id("kotlin-kapt")
+    id("com.google.gms.google-services") // <-- Dies hinzufügen!
 }
 
 android {
@@ -62,9 +63,17 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("com.google.firebase:firebase-firestore:25.1.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    //Testing
+    // Firebase Authentication & Google Sign-In
+    implementation("com.google.firebase:firebase-auth-ktx:22.3.0") // ✅ Korrekte Version für Kotlin
+    implementation("com.google.android.gms:play-services-auth:20.7.0") // ✅ Google Sign-In
+
+    // Firestore Database (Falls du es nutzen möchtest)
+    implementation("com.google.firebase:firebase-firestore-ktx:24.10.0")
+
+    // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
@@ -78,11 +87,5 @@ dependencies {
 
     // ViewModel für Jetpack Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.1") // schau ma mal
-
-    //Datenbank - room
-    implementation("androidx.room:room-runtime:2.6.1")
-    kapt("androidx.room:room-compiler:2.6.1") // Für Kotlin
-    implementation("androidx.room:room-ktx:2.6.1")
-
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.1")
 }

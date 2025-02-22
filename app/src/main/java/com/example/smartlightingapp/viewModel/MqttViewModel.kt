@@ -2,6 +2,7 @@ package com.example.smartlightingapp.viewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smartlightingapp.data.FirestoreManager
 import com.example.smartlightingapp.data.LightDevice
 import com.example.smartlightingapp.data.MqttManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,8 @@ class MqttViewModel: ViewModel() {
             deviceId, message ->
         updateDeviceState(deviceId, message) // Hier wird updateDeviceState() aufgerufen
     }
+
+    private val firestoreManager = FirestoreManager()
 
     // 🌟 Liste aller Lichter speichern
     private val _lights = MutableStateFlow<List<LightDevice>>(emptyList())
@@ -30,6 +33,38 @@ class MqttViewModel: ViewModel() {
             }
             mqttManager.requestDeviceStatus(deviceId) // 🎯 Direkt nach Start den Status abrufen
 
+        }
+    }
+
+    // 🌟 Gerät hinzufügen
+    fun addDevice(id: String, name: String) {
+        viewModelScope.launch {
+            firestoreManager.addLight(id, name)
+        }
+    }
+
+    // 🌟 Gerät entfernen
+    fun removeDevice(id: String) {
+        viewModelScope.launch {
+            firestoreManager.removeLight(id)
+        }
+    }
+
+    fun updateDevice(id: String, name: String, isOn: Boolean, brightness: Int) {
+        viewModelScope.launch {
+            firestoreManager.updateLight(id, name, isOn, brightness)
+        }
+    }
+
+    // 🌟 Gerät umbenennen
+    fun renameDevice(id: String, newName: String) {
+        viewModelScope.launch {
+            val updatedLights = _lights.value.toMutableList()
+            val device = updatedLights.find { it.id == id }
+            if (device != null) {
+                device.name = newName
+                _lights.value = updatedLights
+            }
         }
     }
 

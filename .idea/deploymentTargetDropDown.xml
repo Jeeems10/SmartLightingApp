@@ -10,12 +10,12 @@
               <deviceKey>
                 <Key>
                   <type value="VIRTUAL_DEVICE_PATH" />
-                  <value value="C:\Users\Startklar\.android\avd\Smart_Light_3.avd" />
+                  <value value="C:\Users\Startklar\.android\avd\Smart_lighting2.avd" />
                 </Key>
               </deviceKey>
             </Target>
           </targetSelectedWithDropDown>
-          <timeTargetWasSelectedWithDropDown value="2025-02-20T18:03:22.993282400Z" />
+          <timeTargetWasSelectedWithDropDown value="2025-02-22T16:04:34.701382800Z" />
         </State>
       </entry>
     </value>

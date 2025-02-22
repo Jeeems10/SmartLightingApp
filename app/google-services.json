@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "755195434593",
+    "project_id": "smartlightingapp-d3cff",
+    "storage_bucket": "smartlightingapp-d3cff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:755195434593:android:b35791809ad3c69a8c3c20",
+        "android_client_info": {
+          "package_name": "com.example.smartlightingapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzR7a3hciszJodmdo4-e1Zp6ZJT-gB17M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
