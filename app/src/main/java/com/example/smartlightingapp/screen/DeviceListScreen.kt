@@ -27,14 +27,16 @@ fun DeviceListScreen(
 ) {
     val lights = lightsViewModel.lights.collectAsState().value
     var showDialog by remember { mutableStateOf(false) }
-    var lightName by remember { mutableStateOf("") }
-    var lightId by remember { mutableStateOf("") }
-
     val isConnected by connectivityViewModel.isConnected.collectAsState()
     val isMqttConnected by lightsViewModel.mqttConnected.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+
+    LaunchedEffect(isMqttConnected) {
+        println("DEBUG: isMqttConnected = $isMqttConnected")
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }

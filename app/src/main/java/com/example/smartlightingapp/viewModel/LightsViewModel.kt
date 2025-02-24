@@ -11,16 +11,27 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 
-class LightsViewModel: ViewModel() {
+class LightsViewModel : ViewModel() {
+
+    private val _mqttConnected = MutableStateFlow(true)
+    val mqttConnected = _mqttConnected.asStateFlow()
+
     private val mqttRepository = MqttRepository(
         brokerUrl = "tcp://192.168.0.53:1883",
         clientId = "SmartLightingApp",
         messageCallback = { deviceId, message -> updateDeviceState(deviceId, message) },
-        connectionLostCallback = { onMqttDisconnected() }
-        )
+        connectionLostCallback = {
+            viewModelScope.launch {
+                onMqttDisconnected()
+            }
+        },
+        connectionEstablishedCallback = {
+            viewModelScope.launch {
+                _mqttConnected.value = true
+            }
+        }
+    )
 
-    private val _mqttConnected = MutableStateFlow(true) // 🔥 Speichert den MQTT-Status
-    val mqttConnected = _mqttConnected.asStateFlow()
 
     private val lightsRepository = LightsRepository()
 

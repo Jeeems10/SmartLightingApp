@@ -1,7 +1,7 @@
 package com.example.smartlightingapp.repository
 
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.MqttCallback
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
 import org.eclipse.paho.client.mqttv3.MqttClient
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttException
@@ -9,88 +9,89 @@ import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
 class MqttRepository(
-        private val brokerUrl: String,
-        private val clientId: String,
-        private val messageCallback: (String, String) -> Unit, // Callback für MQTT-Nachrichten
-        private val connectionLostCallback: () -> Unit // Callback für Verbindungsverlust
-        ){
+    private val brokerUrl: String,
+    private val clientId: String,
+    private val messageCallback: (String, String) -> Unit, // Callback for MQTT messages
+    private val connectionLostCallback: () -> Unit, // Callback for connection loss
+    private val connectionEstablishedCallback: () -> Unit // Callback for successful connection
+) {
     private var client: MqttClient? = null
     var isConnected = false
 
-    // Definiere Topics für Lichtsteuerung & Helligkeit
-    private val stateTopic = "stat/D1Mini_1/Result"
-
-    init{
+    init {
         connect()
     }
 
-     fun connect(){
-         if (client?.isConnected == true) {
-             println("MQTT: Bereits verbunden.")
-             return
-         }
+    fun connect() {
+        if (client?.isConnected == true) {
+            println("MQTT: Bereits verbunden.")
+            return
+        }
 
-         try {
-             client = MqttClient(brokerUrl, clientId, MemoryPersistence())
-             val options = MqttConnectOptions().apply {
-                 isCleanSession = true  // Verbindung behalten
-                 isAutomaticReconnect = true  // Automatisch neu verbinden
-                 userName = "jamesponce"  // Falls nötig
-                 password = "jamesponce".toCharArray()  // Falls nötig
-                 connectionTimeout = 10 // Erhöhe Timeout
-             }
+        try {
+            client = MqttClient(brokerUrl, clientId, MemoryPersistence())
+            val options = MqttConnectOptions().apply {
+                isCleanSession = true      // Maintain session
+                isAutomaticReconnect = true // Automatically reconnect
+                userName = "bjugoy"         // If needed
+                password = "pass1".toCharArray()  // If needed
+                connectionTimeout = 10     // Increase timeout
+            }
 
-             client?.setCallback(object : MqttCallback {
-                 override fun connectionLost(cause: Throwable?) {
-                     println("⚠ MQTT: Verbindung verloren!")
-                     isConnected = false
-                     connectionLostCallback() // 🔥 ViewModel benachrichtigen
-                 }
+            client?.setCallback(object : MqttCallbackExtended {
+                override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+                    println("MQTT: connectComplete - reconnect: $reconnect, serverURI: $serverURI")
+                    isConnected = true
+                    connectionEstablishedCallback() // Notify ViewModel that we are connected
+                }
 
-                 override fun messageArrived(topic: String?, message: MqttMessage?) {
-                     val payload = message?.toString() ?: return
-                     topic?.let { messageCallback(it, payload) }
-                 }
+                override fun connectionLost(cause: Throwable?) {
+                    println("⚠ MQTT: Verbindung verloren!")
+                    isConnected = false
+                    connectionLostCallback() // Notify the ViewModel
+                }
 
-                 override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-             })
+                override fun messageArrived(topic: String?, message: MqttMessage?) {
+                    val payload = message?.toString() ?: return
+                    topic?.let { messageCallback(it, payload) }
+                }
 
-             client?.connect(options)
-             isConnected = true
-             println(" MQTT: Verbindung hergestellt mit $brokerUrl")
+                override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+            })
 
-             // Manuelles Abonnieren nach Verbindung
-             listOf("D1Mini_1", "D1Mini_2").forEach { deviceId ->
-                 val topic = "tele/$deviceId/LWT"
-                 println("DEBUG: Manuelles Abonnieren von $topic")
+            client?.connect(options)
+            // Note: connectionEstablishedCallback() is now called in connectComplete()
 
-                 subscribe(topic, 1) { message ->
-                     println("DEBUG: Nachricht empfangen für $deviceId -> $message")
-                     messageCallback(deviceId, message) // Nachricht an MqttViewModel weitergeben
-                 }
-             }
+            // Manual subscriptions after connection
+            listOf("D1Mini_1", "D1Mini_2").forEach { deviceId ->
+                val topic = "tele/$deviceId/LWT"
+                println("DEBUG: Manuelles Abonnieren von $topic")
+                subscribe(topic, 1) { message ->
+                    println("DEBUG: Nachricht empfangen für $deviceId -> $message")
+                    messageCallback(deviceId, message)
+                }
+            }
 
-         } catch (e: MqttException) {
-             println(" MQTT: Verbindung fehlgeschlagen - ${e.message}")
-             e.printStackTrace()
-         }
+        } catch (e: MqttException) {
+            println("MQTT: Verbindung fehlgeschlagen - ${e.message}")
+            e.printStackTrace()
+        }
     }
 
     fun publishMessage(topic: String, payload: String) {
         try {
-            if (client == null || !client!!.isConnected) {  //  Sicherstellen, dass MQTT verbunden ist
+            if (client == null || !client!!.isConnected) {
                 println("⚠ MQTT: Client ist nicht verbunden, versuche zu verbinden...")
                 connect()
             }
-
             val message = MqttMessage(payload.toByteArray()).apply {
                 qos = 1
                 isRetained = false
             }
             client?.publish(topic, message)
-            println(" MQTT: Nachricht gesendet - $payload")
+            println("MQTT: Nachricht gesendet - $payload")
         } catch (e: MqttException) {
-            println(" MQTT: Nachricht konnte nicht gesendet werden")
+            println("MQTT: Nachricht konnte nicht gesendet werden")
             e.printStackTrace()
         }
     }
@@ -118,7 +119,6 @@ class MqttRepository(
         }
     }
 
-
     fun disconnect() {
         try {
             client?.disconnect()
@@ -131,7 +131,6 @@ class MqttRepository(
     fun requestDeviceStatus(deviceId: String) {
         val topic = "cmnd/$deviceId/STATUS"
         println("DEBUG: Sende Statusabfrage an $topic")
-        publishMessage(topic, "0") // Statusabfrage an Tasmota
+        publishMessage(topic, "0")
     }
-
 }
