@@ -54,9 +54,11 @@ class LightsViewModel : ViewModel() {
 
             // Nach dem Laden der Geräte -> MQTT abonnieren
             savedLights.forEach { device ->
+                // Subscribe to the device's LWT topic to get online/offline updates
                 mqttRepository.subscribe("tele/${device.id}/LWT") { message ->
                     updateOnlineStatus(device.id, message)
                 }
+                // Optionally, you can still send a status request if needed, but ensure the device responds to it.
                 mqttRepository.requestDeviceStatus(device.id)
             }
         }
@@ -131,14 +133,8 @@ class LightsViewModel : ViewModel() {
                 val parts = message.split(":")
                 if (parts.size == 2) {
                     val deviceId = parts[0]
-                    val ipAddress = parts[1]
-                    // Create a discovered device (default name "ESP Device")
-                    val device = LightDevice(deviceId, "ESP Device",
-                        isOn = false,
-                        isOnline = false,
-                        brightness = 50
-                    )
-                    // Add device if not already in the list
+                    // Create a discovered device without assuming it's online
+                    val device = LightDevice(deviceId, "ESP Device", isOn = false, isOnline = false, brightness = 50)
                     if (_discoveredDevices.value.none { it.id == deviceId }) {
                         _discoveredDevices.value = _discoveredDevices.value + device
                     }
@@ -147,7 +143,7 @@ class LightsViewModel : ViewModel() {
             // Publish discovery request so ESP devices announce themselves
             mqttRepository.publishMessage("lights/discovery/request", "discover")
             // Wait 10 seconds to gather responses
-            delay(1000)
+            delay(700)
             mqttRepository.unsubscribe("lights/discovery")
         }
     }
@@ -169,17 +165,17 @@ class LightsViewModel : ViewModel() {
 
     // 🌟 Geräteliste aktualisieren
     private fun updateDeviceState(deviceId: String, message: String) {
-        println("DEBUG: Update für $deviceId mit Nachricht: $message")
-
+        println("DEBUG: Update for $deviceId with message: $message")
         viewModelScope.launch {
             val updatedLights = _lights.value.toMutableList()
             val existingLight = updatedLights.find { it.id == deviceId }
 
+            // Always mark as online when a message arrives
             val newLight = LightDevice(
                 id = deviceId,
                 name = existingLight?.name ?: "Licht $deviceId",
                 isOn = message.contains("\"POWER\":\"ON\""),
-                isOnline = existingLight?.isOnline ?: false,
+                isOnline = true,
                 brightness = extractBrightness(message) ?: existingLight?.brightness ?: 50
             )
 
@@ -191,20 +187,19 @@ class LightsViewModel : ViewModel() {
 
             _lights.value = updatedLights
 
-            // Update Firestore
+            // Update Firestore with the new online status
             lightsRepository.updateLight(
                 id = deviceId,
                 isOn = newLight.isOn,
                 name = null,
                 brightness = newLight.brightness,
-                isOnline = null
+                isOnline = true
             )
 
-            // 🔥 Speichere den letzten Zeitpunkt, an dem das Gerät eine Nachricht gesendet hat
+            // Save the time of the last received message
             onlineStatusTimeout[deviceId] = System.currentTimeMillis()
         }
     }
-
 
     // 🌟 Licht togglen
     fun toggleLight(id: String) {
@@ -249,23 +244,18 @@ class LightsViewModel : ViewModel() {
     private fun startOfflineWatcher() {
         viewModelScope.launch {
             while (true) {
-                delay(10_000) // 🔥 Alle 10 Sekunden prüfen
-
+                delay(10_000) // check every 10 seconds
                 val currentTime = System.currentTimeMillis()
                 val updatedLights = _lights.value.toMutableList()
                 var hasChanges = false
 
                 updatedLights.forEachIndexed { index, light ->
                     val lastUpdate = onlineStatusTimeout[light.id] ?: 0
-                    val isDeviceOffline = (currentTime - lastUpdate) > 10_000 // 🔥 Timeout nach 10 Sekunden
-
+                    val isDeviceOffline = (currentTime - lastUpdate) > 10_000
                     if (isDeviceOffline && light.isOnline) {
                         println("DEBUG: Gerät ${light.id} wurde als OFFLINE erkannt!")
-
                         updatedLights[index] = light.copy(isOnline = false)
                         hasChanges = true
-
-                        // ✅ Firestore aktualisieren
                         lightsRepository.updateLight(
                             id = light.id,
                             isOn = light.isOn,
@@ -275,7 +265,6 @@ class LightsViewModel : ViewModel() {
                         )
                     }
                 }
-
                 if (hasChanges) {
                     _lights.value = updatedLights
                 }
@@ -285,29 +274,50 @@ class LightsViewModel : ViewModel() {
 
     private fun updateOnlineStatus(deviceId: String, message: String) {
         viewModelScope.launch {
-            val updatedLights = _lights.value.toMutableList()
-            val existingLight = updatedLights.find { it.id == deviceId }
-
+            // Assume the device sends "Online" in its heartbeat
             val isOnline = message == "Online"
-
-            println("DEBUG: Online-Status von $deviceId wurde aktualisiert: $isOnline (Nachricht: $message)")
-
-            if (existingLight != null && existingLight.isOnline != isOnline) {
-                updatedLights[updatedLights.indexOf(existingLight)] = existingLight.copy(isOnline = isOnline)
-                _lights.value = updatedLights
-
-                lightsRepository.updateLight(
-                    id = deviceId,
-                    isOn = existingLight.isOn,
-                    name = null,
-                    brightness = existingLight.brightness,
-                    isOnline = isOnline
-                )
-            }
-
             if (isOnline) {
                 onlineStatusTimeout[deviceId] = System.currentTimeMillis()
             }
+
+            // Only update if there is an actual change
+            val updatedLights = _lights.value.toMutableList()
+            val index = updatedLights.indexOfFirst { it.id == deviceId }
+            if (index != -1 && updatedLights[index].isOnline != isOnline) {
+                val device = updatedLights[index]
+                updatedLights[index] = device.copy(isOnline = isOnline)
+                _lights.value = updatedLights
+                lightsRepository.updateLight(
+                    id = deviceId,
+                    isOn = device.isOn,
+                    name = null,
+                    brightness = device.brightness,
+                    isOnline = isOnline
+                )
+            }
+        }
+    }
+
+    fun markDeviceOnline(deviceId: String) {
+        viewModelScope.launch {
+            val updatedLights = _lights.value.toMutableList()
+            val index = updatedLights.indexOfFirst { it.id == deviceId }
+            if (index != -1) {
+                val device = updatedLights[index]
+                if (!device.isOnline) {
+                    updatedLights[index] = device.copy(isOnline = true)
+                    _lights.value = updatedLights
+                    lightsRepository.updateLight(
+                        id = deviceId,
+                        isOn = device.isOn,
+                        name = null,
+                        brightness = device.brightness,
+                        isOnline = true
+                    )
+                }
+            }
+            // Refresh the online timeout for the device.
+            onlineStatusTimeout[deviceId] = System.currentTimeMillis()
         }
     }
 
