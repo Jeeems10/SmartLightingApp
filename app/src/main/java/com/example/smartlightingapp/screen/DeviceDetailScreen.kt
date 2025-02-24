@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -51,6 +52,19 @@ fun DeviceDetailScreen(navController: NavController, deviceId: String, lightsVie
         Spacer(modifier = Modifier.height(16.dp))
 
         LightControl(light = device, lightsViewModel = lightsViewModel)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 🔥 Button zum Entfernen des Lichts
+        Button(
+            onClick = {
+                lightsViewModel.removeDevice(device.id)
+                navController.popBackStack()
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+        ) {
+            Text("Licht entfernen", color = Color.White)
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
