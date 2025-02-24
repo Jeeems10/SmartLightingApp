@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 class LightsViewModel: ViewModel() {
     private val mqttRepository = MqttRepository(
-        brokerUrl = "tcp://192.168.0.67:1883",
+        brokerUrl = "tcp://192.168.0.53:1883",
         clientId = "SmartLightingApp",
         messageCallback = { deviceId, message -> updateDeviceState(deviceId, message) },
         connectionLostCallback = { onMqttDisconnected() }
