@@ -27,28 +27,31 @@ fun AppNavigation() {
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
 
     if (isLoggedIn == null) {
-        // Ladebildschirm anzeigen, während der Login-Status geprüft wird
-        CircularProgressIndicator()
+        CircularProgressIndicator()  // Ladebildschirm
     } else {
         NavHost(
             navController = navController,
-            startDestination = if (authViewModel.isLoggedIn.collectAsState().value == true) "device_list" else "login"
-
+            startDestination = if (isLoggedIn == true) "main" else "login"
         ) {
             composable("login") {
                 LoginScreen(navController, authRepository)
             }
 
+            // 🚀 Jetzt mit dem neuen Container-Screen
+            composable("main") {
+                BottomNavContainerScreen(navController, lightsViewModel, authViewModel)
+            }
+
             composable("device_list") {
-                DeviceListScreen(navController, lightsViewModel, authViewModel)
+                DeviceListScreen(navController, navController, lightsViewModel, authViewModel)
             }
 
             composable(
-                "device_detail/{deviceId}",
+                route = "device_detail/{deviceId}",
                 arguments = listOf(navArgument("deviceId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val deviceId = backStackEntry.arguments?.getString("deviceId") ?: return@composable
-                DeviceDetailScreen(navController, deviceId)
+                DeviceDetailScreen(navController, deviceId, lightsViewModel)
             }
         }
     }

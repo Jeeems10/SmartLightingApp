@@ -54,7 +54,7 @@ fun LoginScreen(
                     authViewModel.login(email, password) { success ->
                         if (success) {
                             println("Login erfolgreich, navigiere zur Geräteliste")
-                            navController.navigate("device_list") {
+                            navController.navigate("main") {
                                 popUpTo("login") { inclusive = true } // Verhindert Zurück-Navigation zum Login
                             }
                         } else {
