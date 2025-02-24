@@ -48,9 +48,10 @@ class LightsViewModel: ViewModel() {
                 val id = doc.getString("id") ?: return@mapNotNull null
                 val name = doc.getString("name") ?: "Unbekannt"
                 val isOn = doc.getBoolean("isOn") ?: false
+                val isOnline = doc.getBoolean("isOnline")?:false
                 val brightness = doc.getLong("brightness")?.toInt() ?: 50
 
-                LightDevice(id, name, isOn, brightness)
+                LightDevice(id, name, isOn,isOnline, brightness)
             }?.let { newLights ->
                 println("🔥 Firestore Update: $newLights")
                 _lights.value = newLights
@@ -64,7 +65,7 @@ class LightsViewModel: ViewModel() {
             val success = lightsRepository.addLight(id, name)
             if (success) {
                 val updatedLights = _lights.value.toMutableList()
-                updatedLights.add(LightDevice(id, name, false, 50))
+                updatedLights.add(LightDevice(id, name, false,false, 50))
                 _lights.value = updatedLights
             } else {
                 println("Fehler: Konnte Gerät nicht zu Firestore hinzufügen!")
@@ -119,6 +120,7 @@ class LightsViewModel: ViewModel() {
                 id = deviceId,
                 name = existingLight?.name ?: "Licht $deviceId",
                 isOn = message.contains("\"POWER\":\"ON\""),
+                isOnline = false,
                 brightness = extractBrightness(message) ?: existingLight?.brightness ?: 50
             )
 

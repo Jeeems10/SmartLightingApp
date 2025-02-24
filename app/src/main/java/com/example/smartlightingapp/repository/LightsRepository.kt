@@ -62,10 +62,12 @@ class LightsRepository {
                 val id = doc.getString("id") ?: return@mapNotNull null
                 val name = doc.getString("name") ?: "Unbekannt"
                 val isOn = doc.getBoolean("isOn") ?: false
+                val isOnline = doc.getBoolean("isOnline")?:false
                 val brightness = doc.getLong("brightness")?.toInt() ?: 50
 
+
                 println("Firestore: Gerät gefunden - $name ($id)")
-                LightDevice(id, name, isOn, brightness)
+                LightDevice(id, name, isOn, isOnline, brightness)
             }
         } catch (e: Exception) {
             println("Fehler beim Abrufen der Geräte: ${e.message}")

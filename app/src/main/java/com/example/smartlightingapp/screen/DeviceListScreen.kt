@@ -57,7 +57,6 @@ fun DeviceListScreen(
                 }
             }
         }
-        // Logout-Button bleibt fix oben
 
     }
 }
