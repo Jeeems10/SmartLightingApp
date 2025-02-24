@@ -52,25 +52,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
-@Composable
-fun DeviceListScreen(navController: NavController, lightsViewModel: LightsViewModel = viewModel()) {
-    val lights by lightsViewModel.lights.collectAsState()
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "Smart Lighting")
-
-        LazyColumn {
-            items(lights) { light ->
-                LightItem(light, lightsViewModel = lightsViewModel ,onClick = { navController.navigate("device_detail/${light.id}") })
-            }
-        }
-    }
-}
-
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
