@@ -108,6 +108,16 @@ class MqttRepository(
         }
     }
 
+    fun unsubscribe(topic: String) {
+        try {
+            client?.unsubscribe(topic)
+            println("MQTT: Unsubscribed from $topic")
+        } catch (e: MqttException) {
+            println("MQTT: Failed to unsubscribe from $topic")
+            e.printStackTrace()
+        }
+    }
+
 
     fun disconnect() {
         try {
