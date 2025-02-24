@@ -24,6 +24,10 @@ class LightsViewModel: ViewModel() {
 
     private val lightsRepository = LightsRepository()
 
+    private val _discoveredDevices = MutableStateFlow<List<LightDevice>>(emptyList())
+    val discoveredDevices = _discoveredDevices.asStateFlow()
+
+
     // 🌟 Liste aller Lichter speichern
     private val _lights = MutableStateFlow<List<LightDevice>>(emptyList())
     val lights = _lights.asStateFlow()
@@ -104,6 +108,36 @@ class LightsViewModel: ViewModel() {
     fun updateDevice(id: String, name: String, isOn: Boolean, brightness: Int, isOnline: Boolean ) {
         viewModelScope.launch {
             lightsRepository.updateLight(id, name, isOn, brightness, isOnline)
+        }
+    }
+
+    fun startDeviceDiscovery() {
+        viewModelScope.launch {
+            // Clear previous discoveries
+            _discoveredDevices.value = emptyList()
+            // Subscribe to discovery topic
+            mqttRepository.subscribe("lights/discovery") { message ->
+                val parts = message.split(":")
+                if (parts.size == 2) {
+                    val deviceId = parts[0]
+                    val ipAddress = parts[1]
+                    // Create a discovered device (default name "ESP Device")
+                    val device = LightDevice(deviceId, "ESP Device",
+                        isOn = false,
+                        isOnline = false,
+                        brightness = 50
+                    )
+                    // Add device if not already in the list
+                    if (_discoveredDevices.value.none { it.id == deviceId }) {
+                        _discoveredDevices.value = _discoveredDevices.value + device
+                    }
+                }
+            }
+            // Publish discovery request so ESP devices announce themselves
+            mqttRepository.publishMessage("lights/discovery/request", "discover")
+            // Wait 10 seconds to gather responses
+            delay(1000)
+            mqttRepository.unsubscribe("lights/discovery")
         }
     }
 

@@ -92,46 +92,46 @@ fun DeviceListScreen(
 
             // 🔥 Dialog für Licht hinzufügen
             if (showDialog) {
+                // Trigger device discovery when dialog appears
+                LaunchedEffect(Unit) {
+                    lightsViewModel.startDeviceDiscovery()
+                }
+                // Collect discovered devices from the ViewModel
+                val discoveredDevices by lightsViewModel.discoveredDevices.collectAsState()
                 AlertDialog(
                     onDismissRequest = { showDialog = false },
-                    title = { Text("Neues Licht hinzufügen") },
+                    title = { Text("Verfügbare Geräte") },
                     text = {
-                        Column {
-                            OutlinedTextField(
-                                value = lightName,
-                                onValueChange = { lightName = it },
-                                label = { Text("Lichtname") }
-                            )
-                            OutlinedTextField(
-                                value = lightId,
-                                onValueChange = { lightId = it },
-                                label = { Text("Licht ID") }
-                            )
+                        if (discoveredDevices.isEmpty()) {
+                            Text("Keine Geräte gefunden. Bitte versuchen Sie es erneut.")
+                        } else {
+                            LazyColumn {
+                                items(discoveredDevices) { device ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Display discovered device info
+                                        Text(
+                                            text = "${device.id} (${device.name})",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        // Button to add the device
+                                        Button(onClick = {
+                                            lightsViewModel.addDevice(device.id, device.name)
+                                        }) {
+                                            Text("Hinzufügen")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
                     confirmButton = {
-                        Button(onClick = {
-                            if (lightId.isBlank() || lightName.isBlank()) {
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("⚠ Bitte alle Felder ausfüllen!")
-                                }
-                            } else if (!isConnected) {
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("⚠ Keine Internetverbindung!")
-                                }
-                            } else {
-                                lightsViewModel.addDevice(lightId, lightName)
-                                showDialog = false
-                                lightId = ""
-                                lightName = ""
-                            }
-                        }) {
-                            Text("Hinzufügen")
-                        }
-                    },
-                    dismissButton = {
                         Button(onClick = { showDialog = false }) {
-                            Text("Abbrechen")
+                            Text("Schließen")
                         }
                     }
                 )
