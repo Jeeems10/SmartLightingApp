@@ -34,8 +34,8 @@ class LightsViewModel: ViewModel() {
 
             // Nach dem Laden der Geräte -> MQTT abonnieren
             savedLights.forEach { device ->
-                mqttRepository.subscribe("stat/${device.id}/RESULT") { message ->
-                    updateDeviceState(device.id, message)
+                mqttRepository.subscribe("tele/${device.id}/LWT") { message ->
+                    updateOnlineStatus(device.id, message)
                 }
                 mqttRepository.requestDeviceStatus(device.id)
             }
@@ -107,7 +107,7 @@ class LightsViewModel: ViewModel() {
             if (deviceIndex != -1) {
                 updatedLights[deviceIndex] = updatedLights[deviceIndex].copy(name = newName) // ✅ Name direkt ändern
                 _lights.value = updatedLights // ✅ StateFlow updaten
-                lightsRepository.updateLight(id, name = newName, isOn = null, brightness = null, isOnline = false) // ✅ Firestore speichern
+                lightsRepository.updateLight(id, name = newName, isOn = null, brightness = null, isOnline = null) // ✅ Firestore speichern
             }
         }
     }
@@ -125,7 +125,7 @@ class LightsViewModel: ViewModel() {
                 id = deviceId,
                 name = existingLight?.name ?: "Licht $deviceId",
                 isOn = message.contains("\"POWER\":\"ON\""),
-                isOnline = true,
+                isOnline = existingLight?.isOnline ?: false,
                 brightness = extractBrightness(message) ?: existingLight?.brightness ?: 50
             )
 
@@ -143,7 +143,7 @@ class LightsViewModel: ViewModel() {
                 isOn = newLight.isOn,
                 name = null,
                 brightness = newLight.brightness,
-                isOnline = true
+                isOnline = null
             )
 
             // 🔥 Speichere den letzten Zeitpunkt, an dem das Gerät eine Nachricht gesendet hat
@@ -161,12 +161,22 @@ class LightsViewModel: ViewModel() {
 
             lightsRepository.updateLight(id, isOn = newState, name = null, brightness = null, isOnline = null) // Firestore updaten
             mqttRepository.publishMessage("cmnd/$id/Power", if (newState) "ON" else "OFF") // MQTT senden
+
+            onlineStatusTimeout[id] = System.currentTimeMillis()
         }
     }
 
     fun setBrightness(id: String, brightness: Int) {
         viewModelScope.launch {
             mqttRepository.publishMessage("cmnd/$id/Dimmer", brightness.toString())
+
+            val updatedLights = _lights.value.toMutableList()
+            val lightIndex = updatedLights.indexOfFirst { it.id == id }
+            if (lightIndex != -1) {
+                updatedLights[lightIndex] = updatedLights[lightIndex].copy(brightness = brightness)
+                _lights.value = updatedLights
+                onlineStatusTimeout[id] = System.currentTimeMillis()
+            }
         }
     }
 
@@ -218,4 +228,33 @@ class LightsViewModel: ViewModel() {
             }
         }
     }
+
+    private fun updateOnlineStatus(deviceId: String, message: String) {
+        viewModelScope.launch {
+            val updatedLights = _lights.value.toMutableList()
+            val existingLight = updatedLights.find { it.id == deviceId }
+
+            val isOnline = message == "Online"
+
+            println("DEBUG: Online-Status von $deviceId wurde aktualisiert: $isOnline (Nachricht: $message)")
+
+            if (existingLight != null && existingLight.isOnline != isOnline) {
+                updatedLights[updatedLights.indexOf(existingLight)] = existingLight.copy(isOnline = isOnline)
+                _lights.value = updatedLights
+
+                lightsRepository.updateLight(
+                    id = deviceId,
+                    isOn = existingLight.isOn,
+                    name = null,
+                    brightness = existingLight.brightness,
+                    isOnline = isOnline
+                )
+            }
+
+            if (isOnline) {
+                onlineStatusTimeout[deviceId] = System.currentTimeMillis()
+            }
+        }
+    }
+
 }
