@@ -43,7 +43,7 @@ class MqttRepository(
              listOf("D1Mini_1", "D1Mini_2").forEach { deviceId ->
                  val topic = "stat/$deviceId/RESULT"
                  println("DEBUG: Manuelles Abonnieren von $topic")
-                 subscribe(topic) { message ->
+                 subscribe(topic, 1) { message ->
                      println("DEBUG: Nachricht empfangen für $deviceId -> $message")
                      messageCallback(deviceId, message) // Nachricht an MqttViewModel weitergeben
                  }
@@ -74,10 +74,10 @@ class MqttRepository(
         }
     }
 
-    fun subscribe(topic: String, callback: (String) -> Unit) {
+    fun subscribe(topic: String, qos: Int = 1, callback: (String) -> Unit) {
         try {
             println("DEBUG: Abonniere Topic $topic")
-            client?.subscribe(topic) { _, message ->
+            client?.subscribe(topic, qos) { _, message ->
                 val payload = String(message.payload)
                 println("MQTT: Nachricht empfangen von $topic - $payload")
                 callback(payload)
