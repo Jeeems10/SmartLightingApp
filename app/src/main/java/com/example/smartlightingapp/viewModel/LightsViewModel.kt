@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.smartlightingapp.repository.LightsRepository
 import com.example.smartlightingapp.model.LightDevice
 import com.example.smartlightingapp.repository.MqttRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -21,6 +22,8 @@ class LightsViewModel: ViewModel() {
     // 🌟 Liste aller Lichter speichern
     private val _lights = MutableStateFlow<List<LightDevice>>(emptyList())
     val lights = _lights.asStateFlow()
+
+    private val onlineStatusTimeout = mutableMapOf<String, Long>()
 
 
     // 🌟 MQTT-Subscription für mehrere Geräte
@@ -57,6 +60,8 @@ class LightsViewModel: ViewModel() {
                 _lights.value = newLights
             }
         }
+
+        startOfflineWatcher()
     }
 
     // 🌟 Gerät hinzufügen
@@ -87,9 +92,9 @@ class LightsViewModel: ViewModel() {
         }
     }
 
-    fun updateDevice(id: String, name: String, isOn: Boolean, brightness: Int) {
+    fun updateDevice(id: String, name: String, isOn: Boolean, brightness: Int, isOnline: Boolean ) {
         viewModelScope.launch {
-            lightsRepository.updateLight(id, name, isOn, brightness)
+            lightsRepository.updateLight(id, name, isOn, brightness, isOnline)
         }
     }
 
@@ -102,7 +107,7 @@ class LightsViewModel: ViewModel() {
             if (deviceIndex != -1) {
                 updatedLights[deviceIndex] = updatedLights[deviceIndex].copy(name = newName) // ✅ Name direkt ändern
                 _lights.value = updatedLights // ✅ StateFlow updaten
-                lightsRepository.updateLight(id, name = newName, isOn = null, brightness = null) // ✅ Firestore speichern
+                lightsRepository.updateLight(id, name = newName, isOn = null, brightness = null, isOnline = false) // ✅ Firestore speichern
             }
         }
     }
@@ -120,7 +125,7 @@ class LightsViewModel: ViewModel() {
                 id = deviceId,
                 name = existingLight?.name ?: "Licht $deviceId",
                 isOn = message.contains("\"POWER\":\"ON\""),
-                isOnline = false,
+                isOnline = true,
                 brightness = extractBrightness(message) ?: existingLight?.brightness ?: 50
             )
 
@@ -137,8 +142,12 @@ class LightsViewModel: ViewModel() {
                 id = deviceId,
                 isOn = newLight.isOn,
                 name = null,
-                brightness = newLight.brightness
+                brightness = newLight.brightness,
+                isOnline = true
             )
+
+            // 🔥 Speichere den letzten Zeitpunkt, an dem das Gerät eine Nachricht gesendet hat
+            onlineStatusTimeout[deviceId] = System.currentTimeMillis()
         }
     }
 
@@ -150,7 +159,7 @@ class LightsViewModel: ViewModel() {
             val newState = !light.isOn
 
 
-            lightsRepository.updateLight(id, isOn = newState, name = null, brightness = null) // Firestore updaten
+            lightsRepository.updateLight(id, isOn = newState, name = null, brightness = null, isOnline = null) // Firestore updaten
             mqttRepository.publishMessage("cmnd/$id/Power", if (newState) "ON" else "OFF") // MQTT senden
         }
     }
@@ -171,5 +180,42 @@ class LightsViewModel: ViewModel() {
         val regex = """"Dimmer":(\d+)""".toRegex()
         val matchResult = regex.find(message)
         return matchResult?.groups?.get(1)?.value?.toIntOrNull()
+    }
+
+    private fun startOfflineWatcher() {
+        viewModelScope.launch {
+            while (true) {
+                delay(10_000) // 🔥 Alle 10 Sekunden prüfen
+
+                val currentTime = System.currentTimeMillis()
+                val updatedLights = _lights.value.toMutableList()
+                var hasChanges = false
+
+                updatedLights.forEachIndexed { index, light ->
+                    val lastUpdate = onlineStatusTimeout[light.id] ?: 0
+                    val isDeviceOffline = (currentTime - lastUpdate) > 10_000 // 🔥 Timeout nach 10 Sekunden
+
+                    if (isDeviceOffline && light.isOnline) {
+                        println("DEBUG: Gerät ${light.id} wurde als OFFLINE erkannt!")
+
+                        updatedLights[index] = light.copy(isOnline = false)
+                        hasChanges = true
+
+                        // ✅ Firestore aktualisieren
+                        lightsRepository.updateLight(
+                            id = light.id,
+                            isOn = light.isOn,
+                            name = null,
+                            brightness = light.brightness,
+                            isOnline = false
+                        )
+                    }
+                }
+
+                if (hasChanges) {
+                    _lights.value = updatedLights
+                }
+            }
+        }
     }
 }

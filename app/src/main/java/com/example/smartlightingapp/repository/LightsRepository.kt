@@ -18,7 +18,7 @@ class LightsRepository {
         }
     }
 
-    suspend fun updateLight(id: String, name: String?, isOn: Boolean?, brightness: Int?) {
+    suspend fun updateLight(id: String, name: String?, isOn: Boolean?, brightness: Int?, isOnline: Boolean?) {
         val docRef = lightsCollection.document(id)
 
         try {
@@ -32,6 +32,7 @@ class LightsRepository {
             name?.let { updates["name"] = it }
             isOn?.let { updates["isOn"] = it }
             brightness?.let { updates["brightness"] = it }
+            isOnline?.let { updates["isOnline"] = it }  // 🔥 Speichere Online-Status
 
             docRef.update(updates).await()
         } catch (e: Exception) {
