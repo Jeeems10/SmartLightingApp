@@ -35,8 +35,8 @@ class MqttRepository(
              val options = MqttConnectOptions().apply {
                  isCleanSession = true  // Verbindung behalten
                  isAutomaticReconnect = true  // Automatisch neu verbinden
-                 userName = "jamesponce"  // Falls nötig
-                 password = "jamesponce".toCharArray()  // Falls nötig
+                 userName = "bjugoy"  // Falls nötig
+                 password = "pass1".toCharArray()  // Falls nötig
                  connectionTimeout = 10 // Erhöhe Timeout
              }
 
