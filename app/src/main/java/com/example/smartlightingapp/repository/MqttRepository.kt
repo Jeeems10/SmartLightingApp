@@ -1,5 +1,7 @@
 package com.example.smartlightingapp.repository
 
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
+import org.eclipse.paho.client.mqttv3.MqttCallback
 import org.eclipse.paho.client.mqttv3.MqttClient
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttException
@@ -9,9 +11,11 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 class MqttRepository(
         private val brokerUrl: String,
         private val clientId: String,
-        private val messageCallback: (String, String) -> Unit // Callback für MQTT-Nachrichten
+        private val messageCallback: (String, String) -> Unit, // Callback für MQTT-Nachrichten
+        private val connectionLostCallback: () -> Unit // Callback für Verbindungsverlust
         ){
     private var client: MqttClient? = null
+    var isConnected = false
 
     // Definiere Topics für Lichtsteuerung & Helligkeit
     private val stateTopic = "stat/D1Mini_1/Result"
@@ -36,12 +40,28 @@ class MqttRepository(
                  connectionTimeout = 10 // Erhöhe Timeout
              }
 
+             client?.setCallback(object : MqttCallback {
+                 override fun connectionLost(cause: Throwable?) {
+                     println("⚠ MQTT: Verbindung verloren!")
+                     isConnected = false
+                     connectionLostCallback() // 🔥 ViewModel benachrichtigen
+                 }
+
+                 override fun messageArrived(topic: String?, message: MqttMessage?) {
+                     val payload = message?.toString() ?: return
+                     topic?.let { messageCallback(it, payload) }
+                 }
+
+                 override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+             })
+
              client?.connect(options)
+             isConnected = true
              println(" MQTT: Verbindung hergestellt mit $brokerUrl")
 
              // Manuelles Abonnieren nach Verbindung
              listOf("D1Mini_1", "D1Mini_2").forEach { deviceId ->
-                 val topic = "stat/$deviceId/RESULT"
+                 val topic = "tele/$deviceId/LWT"
                  println("DEBUG: Manuelles Abonnieren von $topic")
 
                  subscribe(topic, 1) { message ->

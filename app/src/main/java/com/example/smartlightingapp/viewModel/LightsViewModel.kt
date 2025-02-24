@@ -12,10 +12,15 @@ import kotlinx.coroutines.launch
 
 
 class LightsViewModel: ViewModel() {
-    private val mqttRepository = MqttRepository("tcp://192.168.0.67:1883", "SmartLightingApp"){
-            deviceId, message ->
-        updateDeviceState(deviceId, message) // Hier wird updateDeviceState() aufgerufen
-    }
+    private val mqttRepository = MqttRepository(
+        brokerUrl = "tcp://192.168.0.67:1883",
+        clientId = "SmartLightingApp",
+        messageCallback = { deviceId, message -> updateDeviceState(deviceId, message) },
+        connectionLostCallback = { onMqttDisconnected() }
+        )
+
+    private val _mqttConnected = MutableStateFlow(true) // 🔥 Speichert den MQTT-Status
+    val mqttConnected = _mqttConnected.asStateFlow()
 
     private val lightsRepository = LightsRepository()
 
@@ -62,6 +67,10 @@ class LightsViewModel: ViewModel() {
         }
 
         startOfflineWatcher()
+    }
+
+    private fun onMqttDisconnected() {
+        _mqttConnected.value = false
     }
 
     // 🌟 Gerät hinzufügen
