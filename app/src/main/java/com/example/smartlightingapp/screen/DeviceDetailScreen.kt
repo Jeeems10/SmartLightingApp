@@ -12,7 +12,11 @@ import com.example.smartlightingapp.viewModel.LightsViewModel
 import com.example.smartlightingapp.widgets.LightControl
 
 @Composable
-fun DeviceDetailScreen(navController: NavController, deviceId: String, lightsViewModel: LightsViewModel = viewModel()) {
+fun DeviceDetailScreen(
+    navController: NavController,
+    deviceId: String,
+    lightsViewModel: LightsViewModel = viewModel()
+) {
     val lights by lightsViewModel.lights.collectAsState()
     val device = lights.find { it.id == deviceId }
 
@@ -21,7 +25,7 @@ fun DeviceDetailScreen(navController: NavController, deviceId: String, lightsVie
         return
     }
 
-    // 🎯 Name als State speichern, damit er bearbeitet werden kann
+    // Store device name as state for editing
     var deviceName by remember { mutableStateOf(device.name) }
 
     Column(
@@ -32,18 +36,21 @@ fun DeviceDetailScreen(navController: NavController, deviceId: String, lightsVie
     ) {
         Text(text = "Gerätedetails für $deviceName")
 
-        // 🔥 Textfeld für den Gerätenamen
+        // Text field to edit device name
         OutlinedTextField(
             value = deviceName,
-            onValueChange = { newName -> deviceName = newName }, // UI aktualisieren
+            onValueChange = { newName -> deviceName = newName },
             label = { Text("Gerätename ändern") },
-            singleLine = true
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
 
-        // 🌟 Button zum Speichern des neuen Namens
+        // Button to save new device name
         Button(
             onClick = { lightsViewModel.renameDevice(device.id, deviceName) },
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
         ) {
             Text("Namen speichern")
         }
@@ -54,8 +61,25 @@ fun DeviceDetailScreen(navController: NavController, deviceId: String, lightsVie
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 🔙 Zurück zur Übersicht
-        Button(onClick = { navController.popBackStack() }) {
+        // Button to remove the device
+        Button(
+            onClick = {
+                lightsViewModel.removeDevice(device.id)
+                navController.popBackStack()  // Return to device list after removal
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Gerät entfernen", color = MaterialTheme.colorScheme.onError)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Button to go back to the list
+        Button(
+            onClick = { navController.popBackStack() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text("Zurück zur Übersicht")
         }
     }
