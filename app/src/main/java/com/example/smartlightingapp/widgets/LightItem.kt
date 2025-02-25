@@ -36,25 +36,19 @@ fun LightItem(light: LightDevice, lightsViewModel: LightsViewModel, onClick: () 
             .padding(8.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFEDE7F6)) // Lila Hintergrund
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEDE7F6))
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // **Obere Zeile: Name, Status, On/Off-Switch**
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // **Lampen-Icon**
                 Icon(
                     imageVector = Icons.Filled.Person,
                     contentDescription = "Light Icon",
                     tint = if (light.isOn) Color.Yellow else Color.Gray,
                     modifier = Modifier.size(32.dp)
                 )
-
-                // **Name & Status**
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -67,8 +61,6 @@ fun LightItem(light: LightDevice, lightsViewModel: LightsViewModel, onClick: () 
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-
-                // **On/Off-Schalter (rechts oben)**
                 Switch(
                     checked = light.isOn,
                     onCheckedChange = {
@@ -76,13 +68,16 @@ fun LightItem(light: LightDevice, lightsViewModel: LightsViewModel, onClick: () 
                     }
                 )
             }
-
-            // **Helligkeits-Slider (unter Online/Offline)**
             Spacer(modifier = Modifier.height(8.dp))
             Slider(
                 value = light.brightness.toFloat(),
                 onValueChange = { newBrightness ->
-                    lightsViewModel.setBrightness(light.id, newBrightness.toInt()) // **Nutze deine Methode hier**
+                    // Update the state without sending an MQTT command
+                    lightsViewModel.updateBrightnessLocally(light.id, newBrightness.toInt())
+                },
+                onValueChangeFinished = {
+                    // When the user stops sliding, apply the brightness if the light is on.
+                    lightsViewModel.applyBrightness(light.id)
                 },
                 valueRange = 0f..100f,
                 modifier = Modifier.fillMaxWidth()

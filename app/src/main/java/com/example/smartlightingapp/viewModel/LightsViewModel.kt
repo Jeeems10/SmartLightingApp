@@ -17,7 +17,7 @@ class LightsViewModel : ViewModel() {
     val mqttConnected = _mqttConnected.asStateFlow()
 
     private val mqttRepository = MqttRepository(
-        brokerUrl = "tcp://192.168.0.53:1883",
+        brokerUrl = "tcp://172.20.10.5:1883",
         clientId = "SmartLightingApp",
         messageCallback = { deviceId, message -> updateDeviceState(deviceId, message) },
         connectionLostCallback = {
@@ -58,6 +58,10 @@ class LightsViewModel : ViewModel() {
                 mqttRepository.subscribe("tele/${device.id}/LWT") { message ->
                     updateOnlineStatus(device.id, message)
                 }
+
+                mqttRepository.subscribe("tele/${device.id}/HEARTBEAT") { message ->
+                    updateOnlineStatusWithHeartbeat(device.id, message)
+                }
                 // Optionally, you can still send a status request if needed, but ensure the device responds to it.
                 mqttRepository.requestDeviceStatus(device.id)
             }
@@ -88,6 +92,30 @@ class LightsViewModel : ViewModel() {
 
     private fun onMqttDisconnected() {
         _mqttConnected.value = false
+    }
+
+    private fun updateOnlineStatusWithHeartbeat(deviceId: String, message: String) {
+        // You can also check the message content if you need it.
+        viewModelScope.launch {
+            // Mark the device as online immediately when a heartbeat arrives.
+            onlineStatusTimeout[deviceId] = System.currentTimeMillis()
+
+            // Update the device's online state if it isn’t already online.
+            val updatedLights = _lights.value.toMutableList()
+            val index = updatedLights.indexOfFirst { it.id == deviceId }
+            if (index != -1 && !updatedLights[index].isOnline) {
+                val device = updatedLights[index]
+                updatedLights[index] = device.copy(isOnline = true)
+                _lights.value = updatedLights
+                lightsRepository.updateLight(
+                    id = deviceId,
+                    isOn = device.isOn,
+                    name = null,
+                    brightness = device.brightness,
+                    isOnline = true
+                )
+            }
+        }
     }
 
     // 🌟 Gerät hinzufügen
@@ -170,13 +198,14 @@ class LightsViewModel : ViewModel() {
             val updatedLights = _lights.value.toMutableList()
             val existingLight = updatedLights.find { it.id == deviceId }
 
-            // Always mark as online when a message arrives
+            // Only update the on/off state from the message. Do not change brightness.
+            val isOn = message.contains("\"POWER\":\"ON\"")
             val newLight = LightDevice(
                 id = deviceId,
                 name = existingLight?.name ?: "Licht $deviceId",
-                isOn = message.contains("\"POWER\":\"ON\""),
+                isOn = isOn,
                 isOnline = true,
-                brightness = extractBrightness(message) ?: existingLight?.brightness ?: 50
+                brightness = existingLight?.brightness ?: 50 // Keep existing brightness
             )
 
             if (existingLight != null) {
@@ -187,7 +216,7 @@ class LightsViewModel : ViewModel() {
 
             _lights.value = updatedLights
 
-            // Update Firestore with the new online status
+            // Update Firestore with the new on/off state but preserve the brightness
             lightsRepository.updateLight(
                 id = deviceId,
                 isOn = newLight.isOn,
@@ -207,24 +236,72 @@ class LightsViewModel : ViewModel() {
             val light = _lights.value.find { it.id == id } ?: return@launch
             val newState = !light.isOn
 
-
-            lightsRepository.updateLight(id, isOn = newState, name = null, brightness = null, isOnline = null) // Firestore updaten
-            mqttRepository.publishMessage("cmnd/$id/Power", if (newState) "ON" else "OFF") // MQTT senden
-
+            // Update Firestore and local state
+            lightsRepository.updateLight(
+                id = id,
+                isOn = newState,
+                name = null,
+                brightness = light.brightness, // Preserve current brightness
+                isOnline = null
+            )
+            mqttRepository.publishMessage("cmnd/$id/Power", if (newState) "ON" else "OFF")
             onlineStatusTimeout[id] = System.currentTimeMillis()
+
+            // If turning on, send the brightness command after a brief delay
+            if (newState) {
+                delay(300) // wait a bit for the light to power on
+                mqttRepository.publishMessage("cmnd/$id/Dimmer", light.brightness.toString())
+            }
         }
     }
 
     fun setBrightness(id: String, brightness: Int) {
         viewModelScope.launch {
-            mqttRepository.publishMessage("cmnd/$id/Dimmer", brightness.toString())
+            // Get the current light state.
+            val light = _lights.value.find { it.id == id } ?: return@launch
 
+            // Only send the MQTT command if the light is already on.
+            if (light.isOn) {
+                mqttRepository.publishMessage("cmnd/$id/Dimmer", brightness.toString())
+            }
+
+            // Update the brightness state regardless of the on/off status.
             val updatedLights = _lights.value.toMutableList()
             val lightIndex = updatedLights.indexOfFirst { it.id == id }
             if (lightIndex != -1) {
                 updatedLights[lightIndex] = updatedLights[lightIndex].copy(brightness = brightness)
                 _lights.value = updatedLights
                 onlineStatusTimeout[id] = System.currentTimeMillis()
+            }
+        }
+    }
+
+    fun updateBrightnessLocally(id: String, brightness: Int) {
+        viewModelScope.launch {
+            val updatedLights = _lights.value.toMutableList()
+            val index = updatedLights.indexOfFirst { it.id == id }
+            if (index != -1) {
+                updatedLights[index] = updatedLights[index].copy(brightness = brightness)
+                _lights.value = updatedLights
+                onlineStatusTimeout[id] = System.currentTimeMillis()
+                // Update brightness in Firestore as needed:
+                lightsRepository.updateLight(
+                    id = id,
+                    isOn = null,
+                    name = null,
+                    brightness = brightness,
+                    isOnline = null
+                )
+            }
+        }
+    }
+
+    // Apply the brightness by sending the MQTT command if the light is on.
+    fun applyBrightness(id: String) {
+        viewModelScope.launch {
+            val light = _lights.value.find { it.id == id } ?: return@launch
+            if (light.isOn) {
+                mqttRepository.publishMessage("cmnd/$id/Dimmer", light.brightness.toString())
             }
         }
     }
@@ -241,20 +318,22 @@ class LightsViewModel : ViewModel() {
         return matchResult?.groups?.get(1)?.value?.toIntOrNull()
     }
 
+    private val heartbeatTimeout = 35000L // 35 seconds
 
     private fun startOfflineWatcher() {
         viewModelScope.launch {
             while (true) {
-                delay(10_000) // check every 10 seconds
+                delay(10000) // Check periodically
                 val currentTime = System.currentTimeMillis()
                 val updatedLights = _lights.value.toMutableList()
                 var hasChanges = false
 
                 updatedLights.forEachIndexed { index, light ->
                     val lastUpdate = onlineStatusTimeout[light.id] ?: 0
-                    val isDeviceOffline = (currentTime - lastUpdate) > 10_000
+                    // If no heartbeat received in the timeout window, mark device as offline.
+                    val isDeviceOffline = (currentTime - lastUpdate) > heartbeatTimeout
                     if (isDeviceOffline && light.isOnline) {
-                        println("DEBUG: Gerät ${light.id} wurde als OFFLINE erkannt!")
+                        println("DEBUG: Device ${light.id} marked as OFFLINE (heartbeat timeout)")
                         updatedLights[index] = light.copy(isOnline = false)
                         hasChanges = true
                         lightsRepository.updateLight(
