@@ -53,6 +53,9 @@ fun DeviceListScreen(
             // 🔴 Logout-Button
             Button(
                 onClick = {
+                    // First clear connections
+                    lightsViewModel.clearConnections()
+                    // Then log out and navigate
                     authViewModel.logout()
                     mainNavController.navigate("login") {
                         popUpTo(0) { inclusive = true }
