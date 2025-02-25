@@ -318,7 +318,7 @@ class LightsViewModel : ViewModel() {
         return matchResult?.groups?.get(1)?.value?.toIntOrNull()
     }
 
-    private val heartbeatTimeout = 35000L // 35 seconds
+    private val heartbeatTimeout = 15000L // 35 seconds
 
     private fun startOfflineWatcher() {
         viewModelScope.launch {
