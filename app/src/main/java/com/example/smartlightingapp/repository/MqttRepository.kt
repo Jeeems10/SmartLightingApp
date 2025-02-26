@@ -11,9 +11,9 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 class MqttRepository(
     private val brokerUrl: String,
     private val clientId: String,
-    private val messageCallback: (String, String) -> Unit, // Callback for MQTT messages
-    private val connectionLostCallback: () -> Unit, // Callback for connection loss
-    private val connectionEstablishedCallback: () -> Unit // Callback for successful connection
+    private val messageCallback: (String, String) -> Unit,
+    private val connectionLostCallback: () -> Unit,
+    private val connectionEstablishedCallback: () -> Unit
 ) {
     private var client: MqttClient? = null
     var isConnected = false
@@ -23,6 +23,7 @@ class MqttRepository(
     }
 
     fun connect() {
+        // If we already have a client and it's connected, do nothing
         if (client?.isConnected == true) {
             println("MQTT: Bereits verbunden.")
             return
@@ -31,24 +32,25 @@ class MqttRepository(
         try {
             client = MqttClient(brokerUrl, clientId, MemoryPersistence())
             val options = MqttConnectOptions().apply {
-                isCleanSession = true      // Maintain session
-                isAutomaticReconnect = true // Automatically reconnect
-                userName = "bjugoy"         // If needed
-                password = "pass1".toCharArray()  // If needed
-                connectionTimeout = 10     // Increase timeout
+                isCleanSession = true
+                isAutomaticReconnect = true
+                userName = "bjugoy"
+                password = "pass1".toCharArray()
+                connectionTimeout = 10
+                keepAliveInterval = 60 // Adjusted keep-alive
             }
 
             client?.setCallback(object : MqttCallbackExtended {
                 override fun connectComplete(reconnect: Boolean, serverURI: String?) {
                     println("MQTT: connectComplete - reconnect: $reconnect, serverURI: $serverURI")
                     isConnected = true
-                    connectionEstablishedCallback() // Notify ViewModel that we are connected
+                    connectionEstablishedCallback()
                 }
 
                 override fun connectionLost(cause: Throwable?) {
-                    println("⚠ MQTT: Verbindung verloren!")
+                    println("⚠ MQTT: Verbindung verloren! ${cause?.message}")
                     isConnected = false
-                    connectionLostCallback() // Notify the ViewModel
+                    connectionLostCallback()
                 }
 
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
@@ -60,17 +62,7 @@ class MqttRepository(
             })
 
             client?.connect(options)
-            // Note: connectionEstablishedCallback() is now called in connectComplete()
-
-            // Manual subscriptions after connection
-            listOf("D1Mini_1", "D1Mini_2").forEach { deviceId ->
-                val topic = "tele/$deviceId/LWT"
-                println("DEBUG: Manuelles Abonnieren von $topic")
-                subscribe(topic, 1) { message ->
-                    println("DEBUG: Nachricht empfangen für $deviceId -> $message")
-                    messageCallback(deviceId, message)
-                }
-            }
+            println("MQTT: Verbindung hergestellt.")
 
         } catch (e: MqttException) {
             println("MQTT: Verbindung fehlgeschlagen - ${e.message}")
@@ -125,6 +117,8 @@ class MqttRepository(
             println("MQTT: Verbindung getrennt")
         } catch (e: MqttException) {
             e.printStackTrace()
+        } finally {
+            client = null
         }
     }
 

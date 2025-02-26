@@ -23,7 +23,6 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val authRepository = AuthRepository()
     val authViewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(authRepository))
-    val lightsViewModel: LightsViewModel = viewModel()
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
 
     if (isLoggedIn == null) {
@@ -37,13 +36,11 @@ fun AppNavigation() {
                 LoginScreen(navController, authRepository)
             }
 
-            // 🚀 Jetzt mit dem neuen Container-Screen
+            // For authenticated area, create a new LightsViewModel instance here.
             composable("main") {
+                // Create a new LightsViewModel scoped to this "main" route.
+                val lightsViewModel: LightsViewModel = viewModel()
                 BottomNavContainerScreen(navController, lightsViewModel, authViewModel)
-            }
-
-            composable("device_list") {
-                DeviceListScreen(navController, navController, lightsViewModel, authViewModel)
             }
 
             composable(
@@ -51,7 +48,7 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("deviceId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val deviceId = backStackEntry.arguments?.getString("deviceId") ?: return@composable
-                DeviceDetailScreen(navController, deviceId, lightsViewModel)
+                DeviceDetailScreen(navController, deviceId, /* pass LightsViewModel if needed */)
             }
         }
     }
